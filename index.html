@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f4ead6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>四宫格数独</title>
+<style>
+  :root {
+    --bg: #f4ead6;
+    --cell: #faf4e6;
+    --highlight: #ecdfc2;
+    --selected: #a9d9f5;
+    --same: #cfe9f8;
+    --line: #b9a888;
+    --border: #3f3a33;
+    --ink: #5c4a3a;
+    --ink-given: #3f3a33;
+    --accent: #17549e;
+    --error: #d6453d;
+    --muted: #8b7b66;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+                 "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+
+  .app {
+    width: 100%;
+    max-width: 460px;
+    margin-block: auto;
+    padding: 12px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+  }
+  .topbar h1 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--border);
+  }
+  .icon-btn {
+    border: none;
+    background: none;
+    padding: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    border-radius: 10px;
+    min-width: 68px;
+  }
+  .icon-btn:active { background: rgba(23, 84, 158, .1); }
+  .icon-btn.right { text-align: right; }
+
+  /* ---------- 难度条 ---------- */
+  .difficulty {
+    display: flex;
+    gap: 8px;
+    background: rgba(255, 255, 255, .5);
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .difficulty button {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 9px 0;
+    border-radius: 9px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .difficulty button[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* ---------- 棋盘 ---------- */
+  .board-wrap { position: relative; }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    aspect-ratio: 1 / 1;
+    background: var(--border);
+    border: 3px solid var(--border);
+    gap: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  .cell {
+    position: relative;
+    background: var(--cell);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(34px, 13vw, 58px);
+    font-weight: 400;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s;
+  }
+  /* 宫的粗线：第 2 列右侧、第 2 行下方 */
+  .cell[data-c="1"] { border-right: 3px solid var(--border); }
+  .cell[data-r="1"] { border-bottom: 3px solid var(--border); }
+
+  .cell.given { color: var(--ink-given); font-weight: 500; }
+  .cell.filled { color: var(--accent); }
+  .cell.peer { background: var(--highlight); }
+  .cell.same { background: var(--same); }
+  .cell.selected { background: var(--selected); }
+  .cell.wrong { color: var(--error); }
+  .cell.flash { animation: shake .35s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  .cell.pop { animation: pop .25s ease-out; }
+  @keyframes pop {
+    0% { transform: scale(.55); }
+    70% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  /* 笔记（候选数） */
+  .notes {
+    position: absolute;
+    inset: 6%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    pointer-events: none;
+  }
+  .notes span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(13px, 4.6vw, 20px);
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* ---------- 工具栏 ---------- */
+  .tools {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .tool {
+    position: relative;
+    border: none;
+    background: none;
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 12px;
+  }
+  .tool:active { background: rgba(23, 84, 158, .08); }
+  .tool:disabled { color: #b6ab97; cursor: default; }
+  .tool svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .badge {
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    margin-left: 6px;
+    background: var(--muted);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+    letter-spacing: .5px;
+  }
+  .tool[data-on="true"] .badge { background: var(--accent); }
+
+  /* ---------- 数字键盘 ---------- */
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .pad button {
+    border: none;
+    background: rgba(255, 255, 255, .55);
+    border-radius: 14px;
+    padding: 14px 0;
+    font-size: clamp(32px, 10vw, 44px);
+    font-weight: 400;
+    color: var(--accent);
+    cursor: pointer;
+    transition: transform .08s, background .12s;
+  }
+  .pad button:active { transform: scale(.94); background: rgba(23, 84, 158, .15); }
+  .pad button.done { color: #bfb09a; background: rgba(255, 255, 255, .3); }
+
+  /* ---------- 胜利弹窗 ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(63, 58, 51, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s;
+    z-index: 10;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .card {
+    background: var(--bg);
+    border-radius: 22px;
+    padding: 30px 26px 22px;
+    text-align: center;
+    max-width: 300px;
+    width: 100%;
+    transform: scale(.85);
+    transition: transform .25s;
+  }
+  .overlay.show .card { transform: scale(1); }
+  .card .emoji { font-size: 56px; line-height: 1; }
+  .card h2 { margin: 14px 0 6px; font-size: 24px; color: var(--border); }
+  .card p { margin: 0 0 20px; color: var(--muted); font-size: 15px; }
+  .card button {
+    width: 100%;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    padding: 14px;
+    border-radius: 14px;
+    cursor: pointer;
+  }
+  .card button:active { opacity: .85; }
+
+  @media (max-height: 700px) {
+    .app { gap: 10px; padding-top: 6px; }
+    .pad button { padding: 10px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <button class="icon-btn" id="newBtn">新游戏</button>
+    <h1>四宫格数独</h1>
+    <button class="icon-btn right" id="checkBtn">检查</button>
+  </div>
+
+  <div class="difficulty" id="difficulty">
+    <button data-level="easy" aria-pressed="true">简单</button>
+    <button data-level="normal" aria-pressed="false">普通</button>
+    <button data-level="hard" aria-pressed="false">挑战</button>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="tools">
+    <button class="tool" id="undoBtn">
+      <svg viewBox="0 0 24 24"><path d="M4 8h11a5 5 0 0 1 0 10H8"/><path d="M8 4L4 8l4 4"/></svg>
+      <span>撤销</span>
+    </button>
+    <button class="tool" id="eraseBtn">
+      <svg viewBox="0 0 24 24"><path d="M4 16l6-6 8 8-4 4H8z"/><path d="M10 10l5-5a2 2 0 0 1 3 0l3 3a2 2 0 0 1 0 3l-3 3"/></svg>
+      <span>擦除</span>
+    </button>
+    <button class="tool" id="notesBtn" data-on="false">
+      <span class="badge" id="notesBadge">关</span>
+      <svg viewBox="0 0 24 24"><path d="M4 20l1-4L16 5a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3L9 20z"/><path d="M14 7l3 3"/></svg>
+      <span>笔记</span>
+    </button>
+    <button class="tool" id="hintBtn">
+      <svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5V16H8v-2.5A6 6 0 0 1 12 3z"/></svg>
+      <span>提示</span>
+    </button>
+  </div>
+
+  <div class="pad" id="pad">
+    <button data-n="1">1</button>
+    <button data-n="2">2</button>
+    <button data-n="3">3</button>
+    <button data-n="4">4</button>
+  </div>
+
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <div class="emoji">🎉</div>
+    <h2>太棒了！</h2>
+    <p id="winText">你完成了这道数独</p>
+    <button id="againBtn">再来一局</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var SIZE = 4;
+  var CELLS = SIZE * SIZE;
+  // 每种难度保留的提示数字个数
+  var CLUES = { easy: 8, normal: 6, hard: 5 };
+
+  var state = {
+    puzzle: [],     // 初始题目，0 表示空
+    solution: [],   // 正确答案
+    grid: [],       // 玩家当前填的数字
+    notes: [],      // 每格的笔记集合
+    selected: null, // 当前选中的格子索引
+    notesMode: false,
+    level: 'easy',
+    history: [],
+    hints: 0
+  };
+
+  var boardEl = document.getElementById('board');
+  var padEl = document.getElementById('pad');
+  var overlayEl = document.getElementById('overlay');
+  var notesBtn = document.getElementById('notesBtn');
+  var notesBadge = document.getElementById('notesBadge');
+  var cellEls = [];
+
+  /* ================= 数独生成 ================= */
+
+  function shuffled(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function isSafe(g, idx, val) {
+    var r = Math.floor(idx / SIZE), c = idx % SIZE;
+    for (var i = 0; i < SIZE; i++) {
+      if (g[r * SIZE + i] === val) return false;   // 行
+      if (g[i * SIZE + c] === val) return false;   // 列
+    }
+    var br = r - r % 2, bc = c - c % 2;            // 宫（2x2）
+    for (var dr = 0; dr < 2; dr++) {
+      for (var dc = 0; dc < 2; dc++) {
+        if (g[(br + dr) * SIZE + bc + dc] === val) return false;
+      }
+    }
+    return true;
+  }
+
+  function fill(g, pos) {
+    if (pos === CELLS) return true;
+    if (g[pos] !== 0) return fill(g, pos + 1);
+    var nums = shuffled([1, 2, 3, 4]);
+    for (var i = 0; i < nums.length; i++) {
+      if (isSafe(g, pos, nums[i])) {
+        g[pos] = nums[i];
+        if (fill(g, pos + 1)) return true;
+        g[pos] = 0;
+      }
+    }
+    return false;
+  }
+
+  // 统计解的个数，最多数到 2（判断唯一解足够了）
+  function countSolutions(g, pos, found) {
+    if (pos === CELLS) return found + 1;
+    if (g[pos] !== 0) return countSolutions(g, pos + 1, found);
+    for (var n = 1; n <= SIZE; n++) {
+      if (isSafe(g, pos, n)) {
+        g[pos] = n;
+        found = countSolutions(g, pos + 1, found);
+        g[pos] = 0;
+        if (found > 1) return found;
+      }
+    }
+    return found;
+  }
+
+  function generate(level) {
+    var solution = new Array(CELLS).fill(0);
+    fill(solution, 0);
+
+    var puzzle = solution.slice();
+    var target = CLUES[level] || CLUES.easy;
+    var order = shuffled(Array.from({ length: CELLS }, function (_, i) { return i; }));
+    var clues = CELLS;
+
+    for (var k = 0; k < order.length && clues > target; k++) {
+      var idx = order[k];
+      var backup = puzzle[idx];
+      puzzle[idx] = 0;
+      var test = puzzle.slice();
+      if (countSolutions(test, 0, 0) === 1) {
+        clues--;
+      } else {
+        puzzle[idx] = backup; // 挖掉后不唯一，放回去
+      }
+    }
+    return { puzzle: puzzle, solution: solution };
+  }
+
+  /* ================= 界面 ================= */
+
+  function buildBoard() {
+    boardEl.innerHTML = '';
+    cellEls = [];
+    for (var i = 0; i < CELLS; i++) {
+      var d = document.createElement('div');
+      d.className = 'cell';
+      d.dataset.i = i;
+      d.dataset.r = Math.floor(i / SIZE);
+      d.dataset.c = i % SIZE;
+      boardEl.appendChild(d);
+      cellEls.push(d);
+    }
+  }
+
+  function newGame(level) {
+    state.level = level || state.level;
+    var made = generate(state.level);
+    state.puzzle = made.puzzle;
+    state.solution = made.solution;
+    state.grid = made.puzzle.slice();
+    state.notes = Array.from({ length: CELLS }, function () { return []; });
+    state.history = [];
+    state.hints = 0;
+    state.selected = null;
+    state.notesMode = false;
+    setNotesMode(false);
+    overlayEl.classList.remove('show');
+    render();
+  }
+
+  function isGiven(i) { return state.puzzle[i] !== 0; }
+
+  function peersOf(i) {
+    var r = Math.floor(i / SIZE), c = i % SIZE;
+    var br = r - r % 2, bc = c - c % 2;
+    var set = {};
+    for (var k = 0; k < SIZE; k++) {
+      set[r * SIZE + k] = true;
+      set[k * SIZE + c] = true;
+    }
+    for (var dr = 0; dr < 2; dr++) {
+      for (var dc = 0; dc < 2; dc++) set[(br + dr) * SIZE + bc + dc] = true;
+    }
+    return set;
+  }
+
+  function render() {
+    var sel = state.selected;
+    var peers = sel === null ? {} : peersOf(sel);
+    var selVal = sel === null ? 0 : state.grid[sel];
+
+    for (var i = 0; i < CELLS; i++) {
+      var el = cellEls[i];
+      var val = state.grid[i];
+      var cls = 'cell';
+
+      if (isGiven(i)) cls += ' given';
+      else if (val) cls += ' filled';
+      if (sel !== null) {
+        if (peers[i]) cls += ' peer';
+        if (selVal && val === selVal && i !== sel) cls += ' same';
+        if (i === sel) cls += ' selected';
+      }
+      if (val && !isGiven(i) && val !== state.solution[i]) cls += ' wrong';
+      el.className = cls;
+
+      if (val) {
+        el.textContent = val;
+      } else if (state.notes[i].length) {
+        el.textContent = '';
+        var wrap = document.createElement('div');
+        wrap.className = 'notes';
+        for (var n = 1; n <= SIZE; n++) {
+          var s = document.createElement('span');
+          s.textContent = state.notes[i].indexOf(n) >= 0 ? n : '';
+          wrap.appendChild(s);
+        }
+        el.appendChild(wrap);
+      } else {
+        el.textContent = '';
+      }
+    }
+
+    // 已经填满 4 个的数字，键盘上变灰
+    var counts = [0, 0, 0, 0, 0];
+    for (var j = 0; j < CELLS; j++) {
+      if (state.grid[j] && state.grid[j] === state.solution[j]) counts[state.grid[j]]++;
+    }
+    Array.prototype.forEach.call(padEl.children, function (btn) {
+      btn.classList.toggle('done', counts[+btn.dataset.n] === SIZE);
+    });
+
+    document.getElementById('undoBtn').disabled = state.history.length === 0;
+  }
+
+  // 整盘快照，这样撤销能把自动清掉的笔记也一起还原
+  function pushHistory(i) {
+    state.history.push({
+      i: i,
+      grid: state.grid.slice(),
+      notes: state.notes.map(function (n) { return n.slice(); })
+    });
+    if (state.history.length > 100) state.history.shift();
+  }
+
+  function place(n) {
+    var i = state.selected;
+    if (i === null || isGiven(i)) return;
+
+    pushHistory(i);
+
+    if (state.notesMode) {
+      if (state.grid[i]) state.grid[i] = 0;
+      var pos = state.notes[i].indexOf(n);
+      if (pos >= 0) state.notes[i].splice(pos, 1);
+      else state.notes[i].push(n);
+    } else {
+      state.grid[i] = state.grid[i] === n ? 0 : n;
+      state.notes[i] = [];
+      if (state.grid[i]) {
+        // 自动清掉同行同列同宫的相同笔记
+        var peers = peersOf(i);
+        Object.keys(peers).forEach(function (p) {
+          var k = state.notes[p].indexOf(n);
+          if (k >= 0) state.notes[p].splice(k, 1);
+        });
+      }
+    }
+
+    render();
+
+    var el = cellEls[i];
+    if (!state.notesMode && state.grid[i]) {
+      if (state.grid[i] === state.solution[i]) {
+        el.classList.add('pop');
+        setTimeout(function () { el.classList.remove('pop'); }, 260);
+      } else {
+        el.classList.add('flash');
+        setTimeout(function () { el.classList.remove('flash'); }, 360);
+      }
+    }
+
+    checkWin();
+  }
+
+  function erase() {
+    var i = state.selected;
+    if (i === null || isGiven(i)) return;
+    if (!state.grid[i] && !state.notes[i].length) return;
+    pushHistory(i);
+    state.grid[i] = 0;
+    state.notes[i] = [];
+    render();
+  }
+
+  function undo() {
+    var last = state.history.pop();
+    if (!last) return;
+    state.grid = last.grid;
+    state.notes = last.notes;
+    state.selected = last.i;
+    render();
+  }
+
+  function hint() {
+    // 优先补当前选中的格子，否则随便挑一个还没填对的
+    var candidates = [];
+    for (var i = 0; i < CELLS; i++) {
+      if (!isGiven(i) && state.grid[i] !== state.solution[i]) candidates.push(i);
+    }
+    if (!candidates.length) return;
+
+    var target = (state.selected !== null && candidates.indexOf(state.selected) >= 0)
+      ? state.selected
+      : candidates[Math.floor(Math.random() * candidates.length)];
+
+    pushHistory(target);
+    state.grid[target] = state.solution[target];
+    state.notes[target] = [];
+    state.selected = target;
+    state.hints++;
+    render();
+
+    cellEls[target].classList.add('pop');
+    setTimeout(function () { cellEls[target].classList.remove('pop'); }, 260);
+    checkWin();
+  }
+
+  function checkAll() {
+    // 填错的格子抖一下；全对的话让已填的格子跳一下表示鼓励
+    var wrong = [], right = [];
+    for (var i = 0; i < CELLS; i++) {
+      if (isGiven(i) || !state.grid[i]) continue;
+      (state.grid[i] === state.solution[i] ? right : wrong).push(cellEls[i]);
+    }
+    var targets = wrong.length ? wrong : right;
+    var cls = wrong.length ? 'flash' : 'pop';
+    targets.forEach(function (el) {
+      el.classList.add(cls);
+      setTimeout(function () { el.classList.remove(cls); }, 380);
+    });
+  }
+
+  function checkWin() {
+    for (var i = 0; i < CELLS; i++) {
+      if (state.grid[i] !== state.solution[i]) return;
+    }
+    document.getElementById('winText').textContent = state.hints > 0
+      ? '用了 ' + state.hints + ' 次提示，继续加油！'
+      : '一次提示都没用，厉害！';
+    setTimeout(function () { overlayEl.classList.add('show'); }, 350);
+  }
+
+  function setNotesMode(on) {
+    state.notesMode = on;
+    notesBtn.dataset.on = on ? 'true' : 'false';
+    notesBadge.textContent = on ? '开' : '关';
+  }
+
+  /* ================= 事件 ================= */
+
+  boardEl.addEventListener('click', function (e) {
+    var cell = e.target.closest('.cell');
+    if (!cell) return;
+    // 点了就一直选中，不做「再点一次取消」，免得孩子点完格子按数字没反应
+    state.selected = +cell.dataset.i;
+    render();
+  });
+
+  padEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (btn) place(+btn.dataset.n);
+  });
+
+  document.getElementById('difficulty').addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    Array.prototype.forEach.call(this.children, function (b) {
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
+    newGame(btn.dataset.level);
+  });
+
+  document.getElementById('newBtn').addEventListener('click', function () { newGame(); });
+  document.getElementById('againBtn').addEventListener('click', function () { newGame(); });
+  document.getElementById('undoBtn').addEventListener('click', undo);
+  document.getElementById('eraseBtn').addEventListener('click', erase);
+  document.getElementById('hintBtn').addEventListener('click', hint);
+  document.getElementById('checkBtn').addEventListener('click', checkAll);
+  notesBtn.addEventListener('click', function () { setNotesMode(!state.notesMode); });
+
+  // 键盘操作，方便在电脑上玩
+  document.addEventListener('keydown', function (e) {
+    if (e.key >= '1' && e.key <= '4') { place(+e.key); return; }
+    if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { erase(); return; }
+    var moves = { ArrowUp: -SIZE, ArrowDown: SIZE, ArrowLeft: -1, ArrowRight: 1 };
+    if (moves[e.key] !== undefined) {
+      e.preventDefault();
+      if (state.selected === null) { state.selected = 0; }
+      else {
+        var r = Math.floor(state.selected / SIZE), c = state.selected % SIZE;
+        if (e.key === 'ArrowUp') r = Math.max(0, r - 1);
+        if (e.key === 'ArrowDown') r = Math.min(SIZE - 1, r + 1);
+        if (e.key === 'ArrowLeft') c = Math.max(0, c - 1);
+        if (e.key === 'ArrowRight') c = Math.min(SIZE - 1, c + 1);
+        state.selected = r * SIZE + c;
+      }
+      render();
+    }
+  });
+
+  buildBoard();
+  newGame('easy');
+})();
+</script>
+</body>
+</html>

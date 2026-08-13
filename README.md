@@ -6,10 +6,28 @@
 
 直接用浏览器打开 `index.html` 就行，不需要装任何东西，也不需要联网。
 
-想放到手机上玩，可以：
+## 发布到网上（GitHub Pages）
 
-- 把 `index.html` 发到手机（微信/邮件都行），用浏览器打开；
-- 或者用 GitHub Pages 之类的静态托管，把仓库发布出去，手机上存成书签或"添加到主屏幕"。
+仓库里已经配好了 `.github/workflows/pages.yml`，**把改动合并进 `main` 分支就会自动发布**，
+第一次运行时会自己打开仓库的 Pages 开关，不用手动去设置页点。
+
+发布好的地址是：<https://thhhhh314.github.io/sudoku/>
+
+（想在合并之前先看看效果，也可以去仓库的 Actions 页面，选 "Deploy to GitHub Pages"，
+点 Run workflow 手动跑一次，选当前分支即可。）
+
+## 装到手机主屏幕
+
+用手机浏览器打开上面的网址，然后：
+
+- **iPhone（Safari）**：点底部的分享按钮 → 「添加到主屏幕」
+- **安卓（Chrome）**：点右上角菜单 → 「添加到主屏幕」／「安装应用」
+
+装好以后就跟普通 App 一样：有自己的图标，打开是全屏的（没有浏览器地址栏），
+而且**断网也能玩**——页面会缓存在手机上。
+
+> 改了 `index.html` 之后，记得把 `sw.js` 里的 `VERSION` 往上加一位（比如 `sudoku-v2`），
+> 孩子的手机下次联网打开时才会更新到新版本。
 
 ## 规则
 
@@ -28,6 +46,15 @@
 
 ## 代码
 
-全部在 `index.html` 一个文件里，HTML + CSS + 原生 JavaScript，没有任何依赖。
+游戏本体全部在 `index.html` 一个文件里，HTML + CSS + 原生 JavaScript，没有任何依赖。
+其余文件都是为了「装到主屏幕」用的：
+
+| 文件 | 作用 |
+| --- | --- |
+| `index.html` | 游戏本体，单独拿走也能玩 |
+| `manifest.webmanifest` | 应用名字、图标、全屏显示等信息 |
+| `sw.js` | 离线缓存，断网也能打开 |
+| `icon.svg` / `icon-*.png` / `apple-touch-icon.png` | 主屏幕图标 |
+| `.github/workflows/pages.yml` | 合并到 main 后自动发布到 GitHub Pages |
 
 题目用回溯算法随机生成完整解，再逐格挖空；每挖一格都会验算剩下的题目是不是仍然只有唯一解，不唯一就把数字放回去。

@@ -24,10 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # enablement: true 会在第一次运行时自动打开仓库的 Pages
+      # 需要先在 Settings → Pages 里把 Source 选成 "GitHub Actions"（只用点一次）。
+      # 工作流自带的 token 没有权限替你打开这个开关，所以这一步没法自动化。
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       # 整个站点就是仓库根目录的几个静态文件，直接上传
       - uses: actions/upload-pages-artifact@v3

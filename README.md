@@ -8,13 +8,16 @@
 
 ## 发布到网上（GitHub Pages）
 
-仓库里已经配好了 `.github/workflows/pages.yml`，**把改动合并进 `main` 分支就会自动发布**，
-第一次运行时会自己打开仓库的 Pages 开关，不用手动去设置页点。
-
 发布好的地址是：<https://thhhhh314.github.io/sudoku/>
 
-（想在合并之前先看看效果，也可以去仓库的 Actions 页面，选 "Deploy to GitHub Pages"，
-点 Run workflow 手动跑一次，选当前分支即可。）
+**第一次需要手动打开一次 Pages 开关**（GitHub 不允许工作流自己开，只能在网页上点）：
+
+打开 <https://github.com/THHHHH314/sudoku/settings/pages>，把 **Source** 选成 **GitHub Actions**，
+选完就自动保存了。之后每次往 `main` 推代码，`.github/workflows/pages.yml` 都会自动重新发布。
+
+> 也可以把 Source 选成 **Deploy from a branch → main → / (root)**，效果一样，
+> 而且不走 Actions（仓库里的 `.nojekyll` 就是为这种方式准备的）。
+> 只是这样的话那个工作流会一直报红，可以顺手把它删掉。
 
 ## 装到手机主屏幕
 

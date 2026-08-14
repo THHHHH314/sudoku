@@ -538,6 +538,7 @@
       <p class="hint-text" id="diffNote"></p>
     </div>
     <button class="btn" id="doneBtn">Done</button>
+    <button class="btn ghost" id="restartBtn">Restart This Puzzle</button>
     <button class="btn ghost" id="newPuzzleBtn">New Puzzle</button>
     <button class="btn danger" id="resetBtn">Reset progress to Level 1</button>
   </div>
@@ -1289,6 +1290,19 @@
     if (effectiveDifficulty() !== was) newPuzzle();
     save();
     render();
+  });
+
+  // Same puzzle, wiped back to its clues. Pushed to history first, so an
+  // accidental restart can be taken back with Undo.
+  document.getElementById('restartBtn').addEventListener('click', function () {
+    closeSettings();
+    pushHistory(state.selected === null ? 0 : state.selected);
+    state.grid = state.puzzle.slice();
+    state.notes = Array.from({ length: CELLS }, function () { return []; });
+    state.hints = 0;
+    state.selected = null;
+    render();
+    save();
   });
 
   document.getElementById('newPuzzleBtn').addEventListener('click', function () {

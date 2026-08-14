@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#f4ead6">
-<meta name="description" content="给小朋友玩的 4×4 数独，每宫四格，只填 1-4，不计时不计分。">
+<meta name="description" content="A 4x4 sudoku for kids. Four cells per box, numbers 1-4 only. No timer, no score.">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="数独">
+<meta name="apple-mobile-web-app-title" content="Sudoku">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>四宫格数独</title>
+<title>4x4 Sudoku</title>
 <style>
   :root {
     --bg: #f4ead6;
@@ -37,8 +37,7 @@
     padding: 0;
     background: var(--bg);
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
-                 "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
     -webkit-text-size-adjust: 100%;
     overscroll-behavior: none;
   }
@@ -58,10 +57,10 @@
     padding: 12px 16px 24px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
   }
 
-  /* ---------- 顶栏 ---------- */
+  /* ---------- top bar ---------- */
   .topbar {
     display: flex;
     align-items: center;
@@ -72,50 +71,37 @@
     margin: 0;
     font-size: 19px;
     font-weight: 600;
-    letter-spacing: 2px;
+    letter-spacing: .5px;
     color: var(--border);
   }
-  .icon-btn {
+  .txt-btn {
     border: none;
     background: none;
-    padding: 8px;
-    font-size: 15px;
+    padding: 8px 10px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--accent);
     cursor: pointer;
     border-radius: 10px;
-    min-width: 68px;
+    min-width: 76px;
+    text-align: left;
   }
-  .icon-btn:active { background: rgba(23, 84, 158, .1); }
-  .icon-btn.right { text-align: right; }
-
-  /* ---------- 难度条 ---------- */
-  .difficulty {
-    display: flex;
-    gap: 8px;
-    background: rgba(255, 255, 255, .5);
-    padding: 4px;
-    border-radius: 12px;
-  }
-  .difficulty button {
-    flex: 1;
+  .txt-btn:active { background: rgba(23, 84, 158, .1); }
+  .gear {
     border: none;
     background: none;
-    padding: 9px 0;
-    border-radius: 9px;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--muted);
+    padding: 8px;
     cursor: pointer;
-    transition: background .15s, color .15s;
+    color: var(--accent);
+    border-radius: 10px;
+    min-width: 76px;
+    display: flex;
+    justify-content: flex-end;
   }
-  .difficulty button[aria-pressed="true"] {
-    background: var(--accent);
-    color: #fff;
-  }
+  .gear:active { background: rgba(23, 84, 158, .1); }
+  .gear svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 
-  /* ---------- 棋盘 ---------- */
-  .board-wrap { position: relative; }
+  /* ---------- board ---------- */
   .board {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -123,7 +109,6 @@
     aspect-ratio: 1 / 1;
     background: var(--border);
     border: 3px solid var(--border);
-    gap: 0;
     border-radius: 4px;
     overflow: hidden;
     touch-action: manipulation;
@@ -142,7 +127,6 @@
     user-select: none;
     transition: background .12s;
   }
-  /* 宫的粗线：第 2 列右侧、第 2 行下方 */
   .cell[data-c="1"] { border-right: 3px solid var(--border); }
   .cell[data-r="1"] { border-bottom: 3px solid var(--border); }
 
@@ -165,7 +149,6 @@
     100% { transform: scale(1); }
   }
 
-  /* 笔记（候选数） */
   .notes {
     position: absolute;
     inset: 6%;
@@ -183,7 +166,7 @@
     font-weight: 600;
   }
 
-  /* ---------- 工具栏 ---------- */
+  /* ---------- tools ---------- */
   .tools {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -221,7 +204,7 @@
   }
   .tool[data-on="true"] .badge { background: var(--accent); }
 
-  /* ---------- 数字键盘 ---------- */
+  /* ---------- number pad ---------- */
   .pad {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -241,7 +224,7 @@
   .pad button:active { transform: scale(.94); background: rgba(23, 84, 158, .15); }
   .pad button.done { color: #bfb09a; background: rgba(255, 255, 255, .3); }
 
-  /* ---------- 胜利弹窗 ---------- */
+  /* ---------- dialogs ---------- */
   .overlay {
     position: fixed;
     inset: 0;
@@ -251,17 +234,24 @@
     justify-content: center;
     padding: 24px;
     opacity: 0;
+    visibility: hidden;      /* keeps hidden dialogs out of tab order / screen readers */
     pointer-events: none;
-    transition: opacity .25s;
+    /* fade out first, then hide; when showing, become visible immediately */
+    transition: opacity .25s, visibility 0s linear .25s;
     z-index: 10;
   }
-  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity .25s, visibility 0s;
+  }
   .card {
     background: var(--bg);
     border-radius: 22px;
-    padding: 30px 26px 22px;
+    padding: 28px 24px 20px;
     text-align: center;
-    max-width: 300px;
+    max-width: 320px;
     width: 100%;
     transform: scale(.85);
     transition: transform .25s;
@@ -270,7 +260,7 @@
   .card .emoji { font-size: 56px; line-height: 1; }
   .card h2 { margin: 14px 0 6px; font-size: 24px; color: var(--border); }
   .card p { margin: 0 0 20px; color: var(--muted); font-size: 15px; }
-  .card button {
+  .btn {
     width: 100%;
     border: none;
     background: var(--accent);
@@ -281,10 +271,51 @@
     border-radius: 14px;
     cursor: pointer;
   }
-  .card button:active { opacity: .85; }
+  .btn:active { opacity: .85; }
+  .btn.ghost {
+    background: rgba(23, 84, 158, .1);
+    color: var(--accent);
+    margin-top: 10px;
+  }
+  .btn.danger { background: none; color: var(--error); font-weight: 500; font-size: 15px; margin-top: 6px; }
+
+  /* settings sheet */
+  .card.settings { text-align: left; }
+  .card.settings h2 { text-align: center; margin-top: 0; }
+  .field { margin: 18px 0 4px; }
+  .field > label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .segmented {
+    display: flex;
+    gap: 6px;
+    background: rgba(255, 255, 255, .5);
+    padding: 4px;
+    border-radius: 12px;
+  }
+  .segmented button {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 10px 0;
+    border-radius: 9px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .segmented button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .hint-text { font-size: 13px; color: var(--muted); margin: 10px 0 0; text-align: center; }
 
   @media (max-height: 700px) {
-    .app { gap: 10px; padding-top: 6px; }
+    .app { gap: 11px; padding-top: 6px; }
     .pad button { padding: 10px 0; }
   }
 </style>
@@ -293,38 +324,35 @@
 <div class="app">
 
   <div class="topbar">
-    <button class="icon-btn" id="newBtn">新游戏</button>
-    <h1>四宫格数独</h1>
-    <button class="icon-btn right" id="checkBtn">检查</button>
+    <button class="txt-btn" id="checkBtn">Check</button>
+    <h1 id="levelLabel">Level 1</h1>
+    <button class="gear" id="settingsBtn" aria-label="Settings">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>
+      </svg>
+    </button>
   </div>
 
-  <div class="difficulty" id="difficulty">
-    <button data-level="easy" aria-pressed="true">简单</button>
-    <button data-level="normal" aria-pressed="false">普通</button>
-    <button data-level="hard" aria-pressed="false">挑战</button>
-  </div>
-
-  <div class="board-wrap">
-    <div class="board" id="board"></div>
-  </div>
+  <div class="board" id="board"></div>
 
   <div class="tools">
     <button class="tool" id="undoBtn">
       <svg viewBox="0 0 24 24"><path d="M4 8h11a5 5 0 0 1 0 10H8"/><path d="M8 4L4 8l4 4"/></svg>
-      <span>撤销</span>
+      <span>Undo</span>
     </button>
     <button class="tool" id="eraseBtn">
       <svg viewBox="0 0 24 24"><path d="M4 16l6-6 8 8-4 4H8z"/><path d="M10 10l5-5a2 2 0 0 1 3 0l3 3a2 2 0 0 1 0 3l-3 3"/></svg>
-      <span>擦除</span>
+      <span>Erase</span>
     </button>
     <button class="tool" id="notesBtn" data-on="false">
-      <span class="badge" id="notesBadge">关</span>
+      <span class="badge" id="notesBadge">OFF</span>
       <svg viewBox="0 0 24 24"><path d="M4 20l1-4L16 5a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3L9 20z"/><path d="M14 7l3 3"/></svg>
-      <span>笔记</span>
+      <span>Notes</span>
     </button>
     <button class="tool" id="hintBtn">
       <svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5V16H8v-2.5A6 6 0 0 1 12 3z"/></svg>
-      <span>提示</span>
+      <span>Hint</span>
     </button>
   </div>
 
@@ -337,12 +365,30 @@
 
 </div>
 
-<div class="overlay" id="overlay">
+<div class="overlay" id="winOverlay">
   <div class="card">
     <div class="emoji">🎉</div>
-    <h2>太棒了！</h2>
-    <p id="winText">你完成了这道数独</p>
-    <button id="againBtn">再来一局</button>
+    <h2 id="winTitle">Great job!</h2>
+    <p id="winText">Level 1 complete</p>
+    <button class="btn" id="nextBtn">Next Level</button>
+  </div>
+</div>
+
+<div class="overlay" id="settingsOverlay">
+  <div class="card settings">
+    <h2>Settings</h2>
+    <div class="field">
+      <label id="diffLabel">Difficulty</label>
+      <div class="segmented" id="difficulty" role="group" aria-labelledby="diffLabel">
+        <button data-level="easy" aria-pressed="true">Easy</button>
+        <button data-level="normal" aria-pressed="false">Medium</button>
+        <button data-level="hard" aria-pressed="false">Hard</button>
+      </div>
+      <p class="hint-text" id="diffNote">Changing this starts a fresh puzzle.</p>
+    </div>
+    <button class="btn" id="doneBtn">Done</button>
+    <button class="btn ghost" id="newPuzzleBtn">New Puzzle</button>
+    <button class="btn danger" id="resetBtn">Reset progress to Level 1</button>
   </div>
 </div>
 
@@ -352,29 +398,33 @@
 
   var SIZE = 4;
   var CELLS = SIZE * SIZE;
-  // 每种难度保留的提示数字个数
   var CLUES = { easy: 8, normal: 6, hard: 5 };
+  var STORE_KEY = 'sudoku4.save.v1';
 
   var state = {
-    puzzle: [],     // 初始题目，0 表示空
-    solution: [],   // 正确答案
-    grid: [],       // 玩家当前填的数字
-    notes: [],      // 每格的笔记集合
-    selected: null, // 当前选中的格子索引
+    level: 1,
+    difficulty: 'easy',
+    puzzle: [],
+    solution: [],
+    grid: [],
+    notes: [],
+    hints: 0,
+    solved: false,
+    selected: null,
     notesMode: false,
-    level: 'easy',
-    history: [],
-    hints: 0
+    history: []
   };
 
   var boardEl = document.getElementById('board');
   var padEl = document.getElementById('pad');
-  var overlayEl = document.getElementById('overlay');
+  var winOverlay = document.getElementById('winOverlay');
+  var settingsOverlay = document.getElementById('settingsOverlay');
   var notesBtn = document.getElementById('notesBtn');
   var notesBadge = document.getElementById('notesBadge');
+  var levelLabel = document.getElementById('levelLabel');
   var cellEls = [];
 
-  /* ================= 数独生成 ================= */
+  /* ================= puzzle generation ================= */
 
   function shuffled(arr) {
     var a = arr.slice();
@@ -388,10 +438,10 @@
   function isSafe(g, idx, val) {
     var r = Math.floor(idx / SIZE), c = idx % SIZE;
     for (var i = 0; i < SIZE; i++) {
-      if (g[r * SIZE + i] === val) return false;   // 行
-      if (g[i * SIZE + c] === val) return false;   // 列
+      if (g[r * SIZE + i] === val) return false;
+      if (g[i * SIZE + c] === val) return false;
     }
-    var br = r - r % 2, bc = c - c % 2;            // 宫（2x2）
+    var br = r - r % 2, bc = c - c % 2;
     for (var dr = 0; dr < 2; dr++) {
       for (var dc = 0; dc < 2; dc++) {
         if (g[(br + dr) * SIZE + bc + dc] === val) return false;
@@ -414,7 +464,6 @@
     return false;
   }
 
-  // 统计解的个数，最多数到 2（判断唯一解足够了）
   function countSolutions(g, pos, found) {
     if (pos === CELLS) return found + 1;
     if (g[pos] !== 0) return countSolutions(g, pos + 1, found);
@@ -429,12 +478,12 @@
     return found;
   }
 
-  function generate(level) {
+  function generate(difficulty) {
     var solution = new Array(CELLS).fill(0);
     fill(solution, 0);
 
     var puzzle = solution.slice();
-    var target = CLUES[level] || CLUES.easy;
+    var target = CLUES[difficulty] || CLUES.easy;
     var order = shuffled(Array.from({ length: CELLS }, function (_, i) { return i; }));
     var clues = CELLS;
 
@@ -442,17 +491,67 @@
       var idx = order[k];
       var backup = puzzle[idx];
       puzzle[idx] = 0;
-      var test = puzzle.slice();
-      if (countSolutions(test, 0, 0) === 1) {
-        clues--;
-      } else {
-        puzzle[idx] = backup; // 挖掉后不唯一，放回去
-      }
+      if (countSolutions(puzzle.slice(), 0, 0) === 1) clues--;
+      else puzzle[idx] = backup;
     }
     return { puzzle: puzzle, solution: solution };
   }
 
-  /* ================= 界面 ================= */
+  /* ================= saved progress ================= */
+
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        level: state.level,
+        difficulty: state.difficulty,
+        puzzle: state.puzzle,
+        solution: state.solution,
+        grid: state.grid,
+        notes: state.notes,
+        hints: state.hints,
+        solved: state.solved
+      }));
+    } catch (e) { /* private mode / storage full: just play without saving */ }
+  }
+
+  function looksValid(s) {
+    return s && typeof s.level === 'number' && s.level >= 1 &&
+      Array.isArray(s.puzzle) && s.puzzle.length === CELLS &&
+      Array.isArray(s.solution) && s.solution.length === CELLS &&
+      Array.isArray(s.grid) && s.grid.length === CELLS &&
+      Array.isArray(s.notes) && s.notes.length === CELLS;
+  }
+
+  function load() {
+    var raw;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return false; }
+    if (!raw) return false;
+
+    var s;
+    try { s = JSON.parse(raw); } catch (e) { return false; }
+    if (!looksValid(s)) return false;
+
+    state.level = s.level;
+    state.difficulty = CLUES[s.difficulty] ? s.difficulty : 'easy';
+    state.hints = s.hints || 0;
+
+    // Closed the app on the win screen: hand them the next level.
+    if (s.solved) {
+      newPuzzle();
+      return true;
+    }
+
+    state.puzzle = s.puzzle;
+    state.solution = s.solution;
+    state.grid = s.grid;
+    state.notes = s.notes.map(function (n) { return Array.isArray(n) ? n : []; });
+    state.solved = false;
+    state.history = [];
+    state.selected = null;
+    return true;
+  }
+
+  /* ================= game flow ================= */
 
   function buildBoard() {
     boardEl.innerHTML = '';
@@ -468,20 +567,19 @@
     }
   }
 
-  function newGame(level) {
-    state.level = level || state.level;
-    var made = generate(state.level);
+  // New puzzle at the current level, keeping progress.
+  function newPuzzle() {
+    var made = generate(state.difficulty);
     state.puzzle = made.puzzle;
     state.solution = made.solution;
     state.grid = made.puzzle.slice();
     state.notes = Array.from({ length: CELLS }, function () { return []; });
     state.history = [];
     state.hints = 0;
+    state.solved = false;
     state.selected = null;
-    state.notesMode = false;
     setNotesMode(false);
-    overlayEl.classList.remove('show');
-    render();
+    save();
   }
 
   function isGiven(i) { return state.puzzle[i] !== 0; }
@@ -501,6 +599,8 @@
   }
 
   function render() {
+    levelLabel.textContent = 'Level ' + state.level;
+
     var sel = state.selected;
     var peers = sel === null ? {} : peersOf(sel);
     var selVal = sel === null ? 0 : state.grid[sel];
@@ -537,7 +637,6 @@
       }
     }
 
-    // 已经填满 4 个的数字，键盘上变灰
     var counts = [0, 0, 0, 0, 0];
     for (var j = 0; j < CELLS; j++) {
       if (state.grid[j] && state.grid[j] === state.solution[j]) counts[state.grid[j]]++;
@@ -549,7 +648,6 @@
     document.getElementById('undoBtn').disabled = state.history.length === 0;
   }
 
-  // 整盘快照，这样撤销能把自动清掉的笔记也一起还原
   function pushHistory(i) {
     state.history.push({
       i: i,
@@ -561,7 +659,7 @@
 
   function place(n) {
     var i = state.selected;
-    if (i === null || isGiven(i)) return;
+    if (i === null || isGiven(i) || state.solved) return;
 
     pushHistory(i);
 
@@ -574,7 +672,6 @@
       state.grid[i] = state.grid[i] === n ? 0 : n;
       state.notes[i] = [];
       if (state.grid[i]) {
-        // 自动清掉同行同列同宫的相同笔记
         var peers = peersOf(i);
         Object.keys(peers).forEach(function (p) {
           var k = state.notes[p].indexOf(n);
@@ -584,16 +681,13 @@
     }
 
     render();
+    save();
 
     var el = cellEls[i];
     if (!state.notesMode && state.grid[i]) {
-      if (state.grid[i] === state.solution[i]) {
-        el.classList.add('pop');
-        setTimeout(function () { el.classList.remove('pop'); }, 260);
-      } else {
-        el.classList.add('flash');
-        setTimeout(function () { el.classList.remove('flash'); }, 360);
-      }
+      var ok = state.grid[i] === state.solution[i];
+      el.classList.add(ok ? 'pop' : 'flash');
+      setTimeout(function () { el.classList.remove(ok ? 'pop' : 'flash'); }, 360);
     }
 
     checkWin();
@@ -601,12 +695,13 @@
 
   function erase() {
     var i = state.selected;
-    if (i === null || isGiven(i)) return;
+    if (i === null || isGiven(i) || state.solved) return;
     if (!state.grid[i] && !state.notes[i].length) return;
     pushHistory(i);
     state.grid[i] = 0;
     state.notes[i] = [];
     render();
+    save();
   }
 
   function undo() {
@@ -616,10 +711,11 @@
     state.notes = last.notes;
     state.selected = last.i;
     render();
+    save();
   }
 
   function hint() {
-    // 优先补当前选中的格子，否则随便挑一个还没填对的
+    if (state.solved) return;
     var candidates = [];
     for (var i = 0; i < CELLS; i++) {
       if (!isGiven(i) && state.grid[i] !== state.solution[i]) candidates.push(i);
@@ -636,6 +732,7 @@
     state.selected = target;
     state.hints++;
     render();
+    save();
 
     cellEls[target].classList.add('pop');
     setTimeout(function () { cellEls[target].classList.remove('pop'); }, 260);
@@ -643,7 +740,6 @@
   }
 
   function checkAll() {
-    // 填错的格子抖一下；全对的话让已填的格子跳一下表示鼓励
     var wrong = [], right = [];
     for (var i = 0; i < CELLS; i++) {
       if (isGiven(i) || !state.grid[i]) continue;
@@ -661,24 +757,39 @@
     for (var i = 0; i < CELLS; i++) {
       if (state.grid[i] !== state.solution[i]) return;
     }
-    document.getElementById('winText').textContent = state.hints > 0
-      ? '用了 ' + state.hints + ' 次提示，继续加油！'
-      : '一次提示都没用，厉害！';
-    setTimeout(function () { overlayEl.classList.add('show'); }, 350);
+    document.getElementById('winText').textContent =
+      'Level ' + state.level + ' complete' +
+      (state.hints === 0 ? ' with no hints!' : ' (' + state.hints +
+        (state.hints === 1 ? ' hint' : ' hints') + ' used)');
+
+    // Bank the level now, so closing the app here still counts as a win.
+    state.level++;
+    state.solved = true;
+    state.selected = null;
+    save();
+    render();
+
+    setTimeout(function () { winOverlay.classList.add('show'); }, 350);
   }
 
   function setNotesMode(on) {
     state.notesMode = on;
     notesBtn.dataset.on = on ? 'true' : 'false';
-    notesBadge.textContent = on ? '开' : '关';
+    notesBadge.textContent = on ? 'ON' : 'OFF';
   }
 
-  /* ================= 事件 ================= */
+  function syncDifficultyButtons() {
+    var group = document.getElementById('difficulty');
+    Array.prototype.forEach.call(group.children, function (b) {
+      b.setAttribute('aria-pressed', b.dataset.level === state.difficulty ? 'true' : 'false');
+    });
+  }
+
+  /* ================= events ================= */
 
   boardEl.addEventListener('click', function (e) {
     var cell = e.target.closest('.cell');
-    if (!cell) return;
-    // 点了就一直选中，不做「再点一次取消」，免得孩子点完格子按数字没反应
+    if (!cell || state.solved) return;
     state.selected = +cell.dataset.i;
     render();
   });
@@ -688,29 +799,80 @@
     if (btn) place(+btn.dataset.n);
   });
 
-  document.getElementById('difficulty').addEventListener('click', function (e) {
-    var btn = e.target.closest('button');
-    if (!btn) return;
-    Array.prototype.forEach.call(this.children, function (b) {
-      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
-    });
-    newGame(btn.dataset.level);
-  });
-
-  document.getElementById('newBtn').addEventListener('click', function () { newGame(); });
-  document.getElementById('againBtn').addEventListener('click', function () { newGame(); });
+  document.getElementById('checkBtn').addEventListener('click', checkAll);
   document.getElementById('undoBtn').addEventListener('click', undo);
   document.getElementById('eraseBtn').addEventListener('click', erase);
   document.getElementById('hintBtn').addEventListener('click', hint);
-  document.getElementById('checkBtn').addEventListener('click', checkAll);
   notesBtn.addEventListener('click', function () { setNotesMode(!state.notesMode); });
 
-  // 键盘操作，方便在电脑上玩
+  document.getElementById('nextBtn').addEventListener('click', function () {
+    winOverlay.classList.remove('show');
+    newPuzzle();
+    render();
+  });
+
+  // settings
+  function closeSettings() {
+    settingsOverlay.classList.remove('show');
+    disarmReset();
+  }
+
+  document.getElementById('settingsBtn').addEventListener('click', function () {
+    syncDifficultyButtons();
+    disarmReset();
+    settingsOverlay.classList.add('show');
+  });
+  document.getElementById('doneBtn').addEventListener('click', closeSettings);
+  settingsOverlay.addEventListener('click', function (e) {
+    if (e.target === settingsOverlay) closeSettings();
+  });
+
+  document.getElementById('difficulty').addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn || btn.dataset.level === state.difficulty) return;
+    state.difficulty = btn.dataset.level;
+    syncDifficultyButtons();
+    newPuzzle();
+    render();
+  });
+
+  document.getElementById('newPuzzleBtn').addEventListener('click', function () {
+    closeSettings();
+    newPuzzle();
+    render();
+  });
+
+  // Two taps to reset, so a stray tap can't wipe a kid's progress.
+  var resetBtn = document.getElementById('resetBtn');
+  var resetArmed = false, resetTimer = null;
+
+  function disarmReset() {
+    resetArmed = false;
+    clearTimeout(resetTimer);
+    resetBtn.textContent = 'Reset progress to Level 1';
+  }
+
+  resetBtn.addEventListener('click', function () {
+    if (!resetArmed) {
+      resetArmed = true;
+      resetBtn.textContent = 'Tap again to confirm reset';
+      resetTimer = setTimeout(disarmReset, 4000);
+      return;
+    }
+    disarmReset();
+    state.level = 1;
+    settingsOverlay.classList.remove('show');
+    newPuzzle();
+    render();
+  });
+
+  // keyboard, for playing on a computer
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeSettings(); return; }
     if (e.key >= '1' && e.key <= '4') { place(+e.key); return; }
     if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { erase(); return; }
-    var moves = { ArrowUp: -SIZE, ArrowDown: SIZE, ArrowLeft: -1, ArrowRight: 1 };
-    if (moves[e.key] !== undefined) {
+    var arrows = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
+    if (arrows[e.key]) {
       e.preventDefault();
       if (state.selected === null) { state.selected = 0; }
       else {
@@ -726,9 +888,10 @@
   });
 
   buildBoard();
-  newGame('easy');
+  if (!load()) newPuzzle();
+  setNotesMode(false);
+  render();
 
-  // 注册离线缓存。直接双击打开文件（file://）时用不了，忽略即可。
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function () {});

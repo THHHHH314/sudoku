@@ -1,8 +1,8 @@
 {
-  "name": "四宫格数独",
-  "short_name": "数独",
-  "description": "给小朋友玩的 4×4 数独，每宫四格，只填 1-4。",
-  "lang": "zh-CN",
+  "name": "4x4 Sudoku",
+  "short_name": "Sudoku",
+  "description": "A 4x4 sudoku for kids. Four cells per box, numbers 1-4 only.",
+  "lang": "en",
   "start_url": ".",
   "scope": "./",
   "display": "standalone",

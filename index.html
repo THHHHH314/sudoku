@@ -303,9 +303,9 @@
     flex: 1;
     border: none;
     background: none;
-    padding: 10px 0;
+    padding: 10px 2px;
     border-radius: 9px;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--muted);
     cursor: pointer;
@@ -530,11 +530,12 @@
     <div class="field">
       <label id="diffLabel">Difficulty</label>
       <div class="segmented" id="difficulty" role="group" aria-labelledby="diffLabel">
-        <button data-level="easy" aria-pressed="true">Easy</button>
+        <button data-level="auto" aria-pressed="true">Auto</button>
+        <button data-level="easy" aria-pressed="false">Easy</button>
         <button data-level="normal" aria-pressed="false">Medium</button>
         <button data-level="hard" aria-pressed="false">Hard</button>
       </div>
-      <p class="hint-text" id="diffNote">Changing this starts a fresh puzzle.</p>
+      <p class="hint-text" id="diffNote"></p>
     </div>
     <button class="btn" id="doneBtn">Done</button>
     <button class="btn ghost" id="newPuzzleBtn">New Puzzle</button>
@@ -549,8 +550,22 @@
   var SIZE = 4;
   var CELLS = SIZE * SIZE;
   var CLUES = { easy: 8, normal: 6, hard: 5 };
+  var LABELS = { easy: 'Easy', normal: 'Medium', hard: 'Hard' };
   var STORE_KEY = 'sudoku4.save.v1';
   var LEVELS_PER_STAMP = 10;
+
+  // On Auto, puzzles get harder as the level count climbs.
+  var TIERS = [
+    { upTo: 20, difficulty: 'easy' },
+    { upTo: 50, difficulty: 'normal' },
+    { upTo: Infinity, difficulty: 'hard' }
+  ];
+  function tierFor(level) {
+    for (var i = 0; i < TIERS.length; i++) {
+      if (level <= TIERS[i].upTo) return TIERS[i].difficulty;
+    }
+    return 'hard';
+  }
 
   /* ================= collectible creatures =================
      Original artwork, drawn as inline SVG. Each line has three stages:
@@ -676,7 +691,8 @@
 
   var state = {
     level: 1,
-    difficulty: 'easy',
+    difficulty: 'easy',    // the manual pick, used when autoDifficulty is off
+    autoDifficulty: true,
     puzzle: [],
     solution: [],
     grid: [],
@@ -778,6 +794,7 @@
       localStorage.setItem(STORE_KEY, JSON.stringify({
         level: state.level,
         difficulty: state.difficulty,
+        autoDifficulty: state.autoDifficulty,
         puzzle: state.puzzle,
         solution: state.solution,
         grid: state.grid,
@@ -808,6 +825,9 @@
 
     state.level = s.level;
     state.difficulty = CLUES[s.difficulty] ? s.difficulty : 'easy';
+    // Saves written before Auto existed had no way to express it, so they
+    // opt in; only an explicit manual pick turns it off.
+    state.autoDifficulty = s.autoDifficulty !== false;
     state.hints = s.hints || 0;
     // Clamp, so a hand-edited or stale save can't skip or replay awards.
     state.shownAwards = Math.max(0, Math.min(earnedAwards(), s.shownAwards || 0));
@@ -844,9 +864,13 @@
     }
   }
 
+  function effectiveDifficulty() {
+    return state.autoDifficulty ? tierFor(state.level) : state.difficulty;
+  }
+
   // New puzzle at the current level, keeping progress.
   function newPuzzle() {
-    var made = generate(state.difficulty);
+    var made = generate(effectiveDifficulty());
     state.puzzle = made.puzzle;
     state.solution = made.solution;
     state.grid = made.puzzle.slice();
@@ -1035,13 +1059,19 @@
     for (var i = 0; i < CELLS; i++) {
       if (state.grid[i] !== state.solution[i]) return;
     }
-    document.getElementById('winText').textContent =
-      'Level ' + state.level + ' complete' +
+    var msg = 'Level ' + state.level + ' complete' +
       (state.hints === 0 ? ' with no hints!' : ' (' + state.hints +
         (state.hints === 1 ? ' hint' : ' hints') + ' used)');
 
     // Bank the level now, so closing the app here still counts as a win.
     state.level++;
+
+    // Call out the step up so the jump in difficulty isn't a nasty surprise.
+    if (state.autoDifficulty && tierFor(state.level) !== tierFor(state.level - 1)) {
+      msg += ' Puzzles now step up to ' + LABELS[tierFor(state.level)] + '!';
+    }
+    document.getElementById('winText').textContent = msg;
+
     state.solved = true;
     state.selected = null;
     save();
@@ -1162,9 +1192,20 @@
 
   function syncDifficultyButtons() {
     var group = document.getElementById('difficulty');
+    var current = state.autoDifficulty ? 'auto' : state.difficulty;
     Array.prototype.forEach.call(group.children, function (b) {
-      b.setAttribute('aria-pressed', b.dataset.level === state.difficulty ? 'true' : 'false');
+      b.setAttribute('aria-pressed', b.dataset.level === current ? 'true' : 'false');
     });
+
+    var note = document.getElementById('diffNote');
+    if (state.autoDifficulty) {
+      var next = TIERS.filter(function (t) { return t.upTo !== Infinity && state.level <= t.upTo; })[0];
+      note.textContent = 'Gets harder as the levels go up. Right now: ' +
+        LABELS[effectiveDifficulty()] +
+        (next ? ' (until level ' + next.upTo + ').' : '.');
+    } else {
+      note.textContent = 'Changing this starts a fresh puzzle.';
+    }
   }
 
   /* ================= events ================= */
@@ -1232,10 +1273,21 @@
 
   document.getElementById('difficulty').addEventListener('click', function (e) {
     var btn = e.target.closest('button');
-    if (!btn || btn.dataset.level === state.difficulty) return;
-    state.difficulty = btn.dataset.level;
+    if (!btn) return;
+    var pick = btn.dataset.level;
+    if (pick === (state.autoDifficulty ? 'auto' : state.difficulty)) return;
+
+    var was = effectiveDifficulty();
+    if (pick === 'auto') {
+      state.autoDifficulty = true;
+    } else {
+      state.autoDifficulty = false;
+      state.difficulty = pick;
+    }
     syncDifficultyButtons();
-    newPuzzle();
+    // Only re-deal when the puzzle would actually change.
+    if (effectiveDifficulty() !== was) newPuzzle();
+    save();
     render();
   });
 

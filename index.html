@@ -314,9 +314,134 @@
   .segmented button[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .hint-text { font-size: 13px; color: var(--muted); margin: 10px 0 0; text-align: center; }
 
+  /* ---------- stamp collection ---------- */
+  .collection {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .slots {
+    flex: 1;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0;
+    scrollbar-width: none;
+  }
+  .slots::-webkit-scrollbar { display: none; }
+  .slot {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    background: rgba(255, 255, 255, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+  }
+  .slot.empty {
+    background: none;
+    border: 2px dashed rgba(139, 123, 102, .4);
+  }
+  .slot.earned { cursor: pointer; }
+  .slot.earned:active { transform: scale(.92); }
+  .slot svg { width: 32px; height: 32px; display: block; }
+  .slot.divider {
+    width: 1px;
+    height: 22px;
+    background: rgba(139, 123, 102, .3);
+    border-radius: 0;
+    align-self: center;
+  }
+  .next-reward {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.25;
+    max-width: 88px;
+  }
+
+  /* ---------- reward / evolution ---------- */
+  .stage {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    margin: 0 auto 6px;
+  }
+  .stage svg.creature {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .rays {
+    position: absolute;
+    inset: -30%;
+    background: repeating-conic-gradient(from 0deg,
+      rgba(255, 236, 180, .95) 0deg 7deg, rgba(255, 236, 180, 0) 7deg 18deg);
+    -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .rays.burst { animation: rays 1.1s ease-out; }
+  @keyframes rays {
+    0%   { opacity: 0; transform: scale(.3) rotate(0deg); }
+    35%  { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.25) rotate(90deg); }
+  }
+
+  .creature.hidden { opacity: 0; }
+  .creature.appear { animation: appear .7s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes appear {
+    0%   { opacity: 0; transform: scale(.3) translateY(14px); }
+    60%  { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  /* evolution: wobble, flash to white silhouettes trading places, then reveal */
+  .creature.evo-old { animation: evoOld 3s ease-in-out forwards; }
+  .creature.evo-new { opacity: 0; animation: evoNew 3s ease-in-out forwards; }
+  @keyframes evoOld {
+    0%, 18%   { opacity: 1; filter: none; transform: scale(1) rotate(0deg); }
+    6%        { transform: scale(1) rotate(-5deg); }
+    12%       { transform: scale(1) rotate(5deg); }
+    22%       { opacity: 1; filter: brightness(0) invert(1); transform: scale(.9); }
+    30%, 46%, 62% { opacity: 0; filter: brightness(0) invert(1); }
+    38%, 54%  { opacity: 1; filter: brightness(0) invert(1); transform: scale(.92); }
+    70%, 100% { opacity: 0; }
+  }
+  @keyframes evoNew {
+    0%, 26%   { opacity: 0; filter: brightness(0) invert(1); transform: scale(1.02); }
+    34%, 50%  { opacity: 1; filter: brightness(0) invert(1); transform: scale(1.06); }
+    42%, 58%  { opacity: 0; filter: brightness(0) invert(1); }
+    66%       { opacity: 1; filter: brightness(0) invert(1); transform: scale(1.1); }
+    78%       { opacity: 1; filter: none; transform: scale(1.14); }
+    100%      { opacity: 1; filter: none; transform: scale(1); }
+  }
+
+  .card .creature-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--border);
+    margin: 2px 0 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .creature.appear, .creature.evo-old, .creature.evo-new, .rays.burst,
+    .cell.pop, .cell.flash { animation-duration: .01s; }
+    .creature.evo-old { opacity: 0; }
+    .creature.evo-new { opacity: 1; filter: none; }
+  }
+
   @media (max-height: 700px) {
-    .app { gap: 11px; padding-top: 6px; }
+    .app { gap: 9px; padding-top: 4px; }
     .pad button { padding: 10px 0; }
+    .slot, .slot svg { width: 32px; height: 32px; }
   }
 </style>
 </head>
@@ -363,6 +488,11 @@
     <button data-n="4">4</button>
   </div>
 
+  <div class="collection">
+    <div class="slots" id="slots"></div>
+    <div class="next-reward" id="nextReward"></div>
+  </div>
+
 </div>
 
 <div class="overlay" id="winOverlay">
@@ -371,6 +501,26 @@
     <h2 id="winTitle">Great job!</h2>
     <p id="winText">Level 1 complete</p>
     <button class="btn" id="nextBtn">Next Level</button>
+  </div>
+</div>
+
+<div class="overlay" id="rewardOverlay">
+  <div class="card">
+    <div class="stage" id="rewardStage">
+      <div class="rays" id="rewardRays"></div>
+    </div>
+    <div class="creature-name" id="rewardName"></div>
+    <p id="rewardText"></p>
+    <button class="btn" id="rewardBtn">Nice!</button>
+  </div>
+</div>
+
+<div class="overlay" id="stampOverlay">
+  <div class="card">
+    <div class="stage" id="stampStage"></div>
+    <div class="creature-name" id="stampName"></div>
+    <p id="stampText"></p>
+    <button class="btn" id="stampCloseBtn">Close</button>
   </div>
 </div>
 
@@ -400,6 +550,129 @@
   var CELLS = SIZE * SIZE;
   var CLUES = { easy: 8, normal: 6, hard: 5 };
   var STORE_KEY = 'sudoku4.save.v1';
+  var LEVELS_PER_STAMP = 10;
+
+  /* ================= collectible creatures =================
+     Original artwork, drawn as inline SVG. Each line has three stages:
+     stage 1 is a new stamp, stages 2 and 3 evolve from the one before.
+     To use your own pictures instead, swap the `art` string for an
+     <img src="..."> — nothing else needs to change. */
+
+  function eyes(x1, x2, y, r) {
+    return '<circle cx="' + x1 + '" cy="' + y + '" r="' + r + '" fill="#33302b"/>' +
+           '<circle cx="' + x2 + '" cy="' + y + '" r="' + r + '" fill="#33302b"/>' +
+           '<circle cx="' + (x1 + r * .35) + '" cy="' + (y - r * .4) + '" r="' + (r * .34) + '" fill="#fff"/>' +
+           '<circle cx="' + (x2 + r * .35) + '" cy="' + (y - r * .4) + '" r="' + (r * .34) + '" fill="#fff"/>';
+  }
+  function shadow() { return '<ellipse cx="60" cy="103" rx="22" ry="5" fill="rgba(51,48,43,.10)"/>'; }
+  function smile(y) {
+    return '<path d="M55 ' + y + 'q5 5 10 0" stroke="#33302b" stroke-width="2.2" fill="none" stroke-linecap="round"/>';
+  }
+
+  var CREATURES = [
+    {
+      line: 'Leaf',
+      stages: [
+        { name: 'Sprig', art:
+          shadow() +
+          '<path d="M60 58c-3-12 4-22 14-25 2 12-4 21-14 25z" fill="#43903a"/>' +
+          '<path d="M60 60v-9" stroke="#43903a" stroke-width="3" stroke-linecap="round"/>' +
+          '<ellipse cx="60" cy="81" rx="22" ry="20" fill="#6bbf59"/>' +
+          '<ellipse cx="60" cy="88" rx="14" ry="11" fill="#eaf6cf"/>' +
+          eyes(53, 67, 76, 4.2) + smile(86) },
+        { name: 'Leaflet', art:
+          shadow() +
+          '<path d="M45 50c-7-10-3-23 5-28 6 11 3 22-5 28z" fill="#43903a"/>' +
+          '<path d="M75 50c7-10 3-23-5-28-6 11-3 22 5 28z" fill="#43903a"/>' +
+          '<ellipse cx="31" cy="80" rx="8" ry="5.5" transform="rotate(-25 31 80)" fill="#5aad4a"/>' +
+          '<ellipse cx="89" cy="80" rx="8" ry="5.5" transform="rotate(25 89 80)" fill="#5aad4a"/>' +
+          '<ellipse cx="60" cy="78" rx="27" ry="25" fill="#6bbf59"/>' +
+          '<ellipse cx="60" cy="86" rx="17" ry="14" fill="#eaf6cf"/>' +
+          eyes(51, 69, 73, 5) + smile(84) },
+        { name: 'Bloomwing', art:
+          shadow() +
+          '<path d="M32 68q-24-16-27 5 16 11 27 5z" fill="#8fd47c"/>' +
+          '<path d="M88 68q24-16 27 5-16 11-27 5z" fill="#8fd47c"/>' +
+          '<circle cx="60" cy="30" r="8" fill="#ffd6e6"/><circle cx="48" cy="38" r="8" fill="#ffd6e6"/>' +
+          '<circle cx="72" cy="38" r="8" fill="#ffd6e6"/><circle cx="53" cy="50" r="8" fill="#ffd6e6"/>' +
+          '<circle cx="67" cy="50" r="8" fill="#ffd6e6"/><circle cx="60" cy="41" r="6" fill="#ffe9a8"/>' +
+          '<ellipse cx="60" cy="78" rx="32" ry="28" fill="#6bbf59"/>' +
+          '<ellipse cx="60" cy="87" rx="20" ry="16" fill="#eaf6cf"/>' +
+          eyes(49, 71, 75, 5.8) + smile(87) }
+      ]
+    },
+    {
+      line: 'Flame',
+      stages: [
+        { name: 'Ember', art:
+          shadow() +
+          '<path d="M60 56c-9-7-7-18 0-25 7 7 9 18 0 25z" fill="#ffb64d"/>' +
+          '<ellipse cx="60" cy="81" rx="22" ry="20" fill="#f2913f"/>' +
+          '<ellipse cx="60" cy="88" rx="14" ry="11" fill="#ffe0b5"/>' +
+          eyes(53, 67, 76, 4.2) + smile(86) },
+        { name: 'Blaze', art:
+          shadow() +
+          '<path d="M80 84q16 2 14-14-12 2-14 14z" fill="#ffb64d"/>' +
+          '<path d="M47 50c-7-7-5-17 1-23 5 7 6 16-1 23z" fill="#ffb64d"/>' +
+          '<path d="M60 46c-9-8-7-20 0-27 7 7 9 19 0 27z" fill="#ffd166"/>' +
+          '<path d="M73 50c7-7 5-17-1-23-5 7-6 16 1 23z" fill="#ffb64d"/>' +
+          '<ellipse cx="60" cy="78" rx="27" ry="25" fill="#f2913f"/>' +
+          '<ellipse cx="60" cy="86" rx="17" ry="14" fill="#ffe0b5"/>' +
+          eyes(51, 69, 73, 5) + smile(84) },
+        { name: 'Pyrewing', art:
+          shadow() +
+          '<path d="M30 66q-25-13-26 8 16 10 26-8z" fill="#ff9f43"/>' +
+          '<path d="M90 66q25-13 26 8-16 10-26-8z" fill="#ff9f43"/>' +
+          '<path d="M40 44c-5-9-2-17 3-21 4 8 4 15-3 21z" fill="#ffd166"/>' +
+          '<path d="M80 44c5-9 2-17-3-21-4 8-4 15 3 21z" fill="#ffd166"/>' +
+          '<path d="M60 40c-11-9-9-23 0-31 9 8 11 22 0 31z" fill="#ffd166"/>' +
+          '<circle cx="60" cy="26" r="5" fill="#fff1c4"/>' +
+          '<ellipse cx="60" cy="78" rx="32" ry="28" fill="#f2913f"/>' +
+          '<ellipse cx="60" cy="87" rx="20" ry="16" fill="#ffe0b5"/>' +
+          eyes(49, 71, 75, 5.8) + smile(87) }
+      ]
+    },
+    {
+      line: 'Wave',
+      stages: [
+        { name: 'Droplet', art:
+          shadow() +
+          '<path d="M60 32c7 9 11 14 11 19a11 11 0 0 1-22 0c0-5 4-10 11-19z" fill="#8fd3f5"/>' +
+          '<ellipse cx="60" cy="81" rx="22" ry="20" fill="#56a9de"/>' +
+          '<ellipse cx="60" cy="88" rx="14" ry="11" fill="#d5edff"/>' +
+          eyes(53, 67, 76, 4.2) + smile(86) },
+        { name: 'Splashling', art:
+          shadow() +
+          '<path d="M60 50q-6-22 4-30 8 12 6 30z" fill="#3a7cb0"/>' +
+          '<path d="M80 86q14 6 18-6-12-6-18 6z" fill="#3a7cb0"/>' +
+          '<ellipse cx="60" cy="78" rx="27" ry="25" fill="#56a9de"/>' +
+          '<ellipse cx="60" cy="86" rx="17" ry="14" fill="#d5edff"/>' +
+          eyes(51, 69, 73, 5) + smile(84) },
+        { name: 'Tidalfin', art:
+          shadow() +
+          '<path d="M60 46q-10-30 6-40 10 18 4 40z" fill="#3a7cb0"/>' +
+          '<path d="M28 76q-22-6-24 8 14 8 24-8z" fill="#8fd3f5"/>' +
+          '<path d="M92 76q22-6 24 8-14 8-24-8z" fill="#8fd3f5"/>' +
+          '<path d="M36 48q-8 6-4 14 8-2 4-14z" fill="#3a7cb0"/>' +
+          '<path d="M84 48q8 6 4 14-8-2-4-14z" fill="#3a7cb0"/>' +
+          '<ellipse cx="60" cy="78" rx="32" ry="28" fill="#56a9de"/>' +
+          '<ellipse cx="60" cy="87" rx="20" ry="16" fill="#d5edff"/>' +
+          eyes(49, 71, 75, 5.8) + smile(87) }
+      ]
+    }
+  ];
+
+  // Flattened award order: line1 stages 1-3, then line2, then line3.
+  var FORMS = [];
+  CREATURES.forEach(function (c, li) {
+    c.stages.forEach(function (st, si) {
+      FORMS.push({ name: st.name, art: st.art, line: c.line, stage: si, lineIndex: li });
+    });
+  });
+
+  function creatureSvg(form, cls) {
+    return '<svg class="creature ' + (cls || '') + '" viewBox="0 0 120 120">' + form.art + '</svg>';
+  }
 
   var state = {
     level: 1,
@@ -410,6 +683,7 @@
     notes: [],
     hints: 0,
     solved: false,
+    shownAwards: 0,
     selected: null,
     notesMode: false,
     history: []
@@ -509,7 +783,8 @@
         grid: state.grid,
         notes: state.notes,
         hints: state.hints,
-        solved: state.solved
+        solved: state.solved,
+        shownAwards: state.shownAwards
       }));
     } catch (e) { /* private mode / storage full: just play without saving */ }
   }
@@ -534,6 +809,8 @@
     state.level = s.level;
     state.difficulty = CLUES[s.difficulty] ? s.difficulty : 'easy';
     state.hints = s.hints || 0;
+    // Clamp, so a hand-edited or stale save can't skip or replay awards.
+    state.shownAwards = Math.max(0, Math.min(earnedAwards(), s.shownAwards || 0));
 
     // Closed the app on the win screen: hand them the next level.
     if (s.solved) {
@@ -646,6 +923,7 @@
     });
 
     document.getElementById('undoBtn').disabled = state.history.length === 0;
+    renderCollection();
   }
 
   function pushHistory(i) {
@@ -778,6 +1056,110 @@
     notesBadge.textContent = on ? 'ON' : 'OFF';
   }
 
+  /* ================= stamps & evolution ================= */
+
+  // One stamp per 10 completed levels. state.level is 1-based and only
+  // increments on a win, so completed levels are state.level - 1.
+  function earnedAwards() {
+    return Math.max(0, Math.min(FORMS.length, Math.floor((state.level - 1) / LEVELS_PER_STAMP)));
+  }
+
+  function renderCollection() {
+    // Only stamps whose reveal has played, so the strip never spoils an
+    // evolution that is still animating.
+    var earned = Math.min(earnedAwards(), state.shownAwards);
+    var slots = document.getElementById('slots');
+    var lastEarned = null;
+    slots.innerHTML = '';
+
+    FORMS.forEach(function (form, i) {
+      if (i > 0 && form.stage === 0) {
+        var sep = document.createElement('div');
+        sep.className = 'slot divider';
+        slots.appendChild(sep);
+      }
+      var el = document.createElement('button');
+      if (i < earned) {
+        el.className = 'slot earned';
+        el.innerHTML = creatureSvg(form);
+        el.title = form.name;
+        el.setAttribute('aria-label', form.name);
+        el.addEventListener('click', function () { openStamp(i); });
+        lastEarned = el;
+      } else {
+        el.className = 'slot empty';
+        el.disabled = true;
+        el.setAttribute('aria-label', 'Not collected yet');
+      }
+      slots.appendChild(el);
+    });
+
+    // Keep the most recent stamp in view once the row overflows.
+    if (lastEarned) slots.scrollLeft = Math.max(0, lastEarned.offsetLeft + lastEarned.offsetWidth - slots.clientWidth);
+
+    var note = document.getElementById('nextReward');
+    if (earned >= FORMS.length) {
+      note.textContent = 'All ' + FORMS.length + ' collected!';
+    } else {
+      var togo = LEVELS_PER_STAMP - ((state.level - 1) % LEVELS_PER_STAMP);
+      var next = FORMS[earned];
+      note.textContent = togo + (togo === 1 ? ' level to ' : ' levels to ') +
+        (next.stage === 0 ? 'a new friend' : 'evolve');
+    }
+  }
+
+  function openStamp(i) {
+    var form = FORMS[i];
+    document.getElementById('stampStage').innerHTML = creatureSvg(form);
+    document.getElementById('stampName').textContent = form.name;
+    document.getElementById('stampText').textContent =
+      form.line + ' family - stage ' + (form.stage + 1) + ' of 3';
+    document.getElementById('stampOverlay').classList.add('show');
+  }
+
+  // Shows one pending award; called again if several are somehow owed.
+  function showNextAward() {
+    if (state.shownAwards >= earnedAwards()) return false;
+
+    var idx = state.shownAwards;
+    var form = FORMS[idx];
+    var stage = document.getElementById('rewardStage');
+    var rays = document.getElementById('rewardRays');
+    var nameEl = document.getElementById('rewardName');
+    var textEl = document.getElementById('rewardText');
+
+    // Rebuild the stage: rays layer + the creature(s) for this award.
+    stage.innerHTML = '';
+    rays.className = 'rays';
+    stage.appendChild(rays);
+
+    if (form.stage === 0) {
+      stage.insertAdjacentHTML('beforeend', creatureSvg(form, 'appear'));
+      nameEl.textContent = form.name;
+      textEl.textContent = 'A new friend joined your collection!';
+      void rays.offsetWidth;
+      rays.className = 'rays burst';
+    } else {
+      var prev = FORMS[idx - 1];
+      stage.insertAdjacentHTML('beforeend', creatureSvg(prev, 'evo-old'));
+      stage.insertAdjacentHTML('beforeend', creatureSvg(form, 'evo-new'));
+      nameEl.textContent = prev.name;
+      textEl.textContent = 'What? ' + prev.name + ' is evolving!';
+      // Reveal happens ~78% into the 3s evolution animation.
+      setTimeout(function () {
+        nameEl.textContent = form.name;
+        textEl.textContent = prev.name + ' evolved into ' + form.name + '!';
+        void rays.offsetWidth;
+        rays.className = 'rays burst';
+      }, 2300);
+    }
+
+    state.shownAwards = idx + 1;
+    save();
+    document.getElementById('rewardOverlay').classList.add('show');
+    return true;
+  }
+
   function syncDifficultyButtons() {
     var group = document.getElementById('difficulty');
     Array.prototype.forEach.call(group.children, function (b) {
@@ -805,10 +1187,31 @@
   document.getElementById('hintBtn').addEventListener('click', hint);
   notesBtn.addEventListener('click', function () { setNotesMode(!state.notesMode); });
 
+  var rewardOverlay = document.getElementById('rewardOverlay');
+
   document.getElementById('nextBtn').addEventListener('click', function () {
     winOverlay.classList.remove('show');
+    // A stamp or evolution is the payoff for the level just finished,
+    // so it plays before the next puzzle is dealt.
+    if (showNextAward()) return;
     newPuzzle();
     render();
+  });
+
+  document.getElementById('rewardBtn').addEventListener('click', function () {
+    rewardOverlay.classList.remove('show');
+    if (showNextAward()) return;
+    // state.solved is still true when the award followed a win; when the
+    // award was owed from a previous session, load() already dealt a board.
+    if (state.solved) newPuzzle();
+    render();
+  });
+
+  document.getElementById('stampCloseBtn').addEventListener('click', function () {
+    document.getElementById('stampOverlay').classList.remove('show');
+  });
+  document.getElementById('stampOverlay').addEventListener('click', function (e) {
+    if (e.target === this) this.classList.remove('show');
   });
 
   // settings
@@ -861,6 +1264,7 @@
     }
     disarmReset();
     state.level = 1;
+    state.shownAwards = 0;   // stamps are earned from the level count, so they clear too
     settingsOverlay.classList.remove('show');
     newPuzzle();
     render();
@@ -868,7 +1272,11 @@
 
   // keyboard, for playing on a computer
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { closeSettings(); return; }
+    if (e.key === 'Escape') {
+      closeSettings();
+      document.getElementById('stampOverlay').classList.remove('show');
+      return;
+    }
     if (e.key >= '1' && e.key <= '4') { place(+e.key); return; }
     if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { erase(); return; }
     var arrows = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
@@ -891,6 +1299,8 @@
   if (!load()) newPuzzle();
   setNotesMode(false);
   render();
+  // Owed a stamp from a session that ended right after a win.
+  setTimeout(showNextAward, 500);
 
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     window.addEventListener('load', function () {

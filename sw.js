@@ -1,6 +1,6 @@
 /* 离线缓存：装到主屏幕后没网也能玩。
    改了 index.html 之后请把 VERSION 往上加一位，用户下次联网打开就会更新。 */
-var VERSION = 'sudoku-v5';
+var VERSION = 'sudoku-v6';
 var ASSETS = [
   '.',
   'index.html',

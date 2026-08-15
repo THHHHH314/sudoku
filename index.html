@@ -104,8 +104,7 @@
   /* ---------- board ---------- */
   .board {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(4, 1fr);
+    /* columns/rows are set from JS to match the board size */
     aspect-ratio: 1 / 1;
     background: var(--border);
     border: 3px solid var(--border);
@@ -127,8 +126,15 @@
     user-select: none;
     transition: background .12s;
   }
-  .cell[data-c="1"] { border-right: 3px solid var(--border); }
-  .cell[data-r="1"] { border-bottom: 3px solid var(--border); }
+  .cell[data-bx-right] { border-right: 3px solid var(--border); }
+  .cell[data-bx-bottom] { border-bottom: 3px solid var(--border); }
+
+  /* 6x6 packs more in, so digits and pencil marks scale down */
+  .board[data-size="6"] .cell { font-size: clamp(24px, 8.5vw, 40px); }
+  .board[data-size="6"] .notes { grid-template-columns: repeat(3, 1fr); }
+  .board[data-size="6"] .notes span { font-size: clamp(9px, 3vw, 13px); }
+  .pad[data-size="6"] button { font-size: clamp(24px, 7vw, 34px); padding: 12px 0; border-radius: 12px; }
+  .pad[data-size="6"] { gap: 7px; }
 
   .cell.given { color: var(--ink-given); font-weight: 500; }
   .cell.filled { color: var(--accent); }
@@ -207,7 +213,7 @@
   /* ---------- number pad ---------- */
   .pad {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* columns are set from JS to match the board size */
     gap: 10px;
   }
   .pad button {
@@ -253,6 +259,9 @@
     text-align: center;
     max-width: 320px;
     width: 100%;
+    /* the settings sheet is tall; let it scroll rather than overflow */
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
     transform: scale(.85);
     transition: transform .25s;
   }
@@ -481,12 +490,7 @@
     </button>
   </div>
 
-  <div class="pad" id="pad">
-    <button data-n="1">1</button>
-    <button data-n="2">2</button>
-    <button data-n="3">3</button>
-    <button data-n="4">4</button>
-  </div>
+  <div class="pad" id="pad"></div>
 
   <div class="collection">
     <div class="slots" id="slots"></div>
@@ -537,6 +541,15 @@
       </div>
       <p class="hint-text" id="diffNote"></p>
     </div>
+    <div class="field">
+      <label id="gridLabel">Board</label>
+      <div class="segmented" id="gridSize" role="group" aria-labelledby="gridLabel">
+        <button data-size="auto" aria-pressed="true">Auto</button>
+        <button data-size="4" aria-pressed="false">4&times;4</button>
+        <button data-size="6" aria-pressed="false">6&times;6</button>
+      </div>
+      <p class="hint-text" id="gridNote"></p>
+    </div>
     <button class="btn" id="doneBtn">Done</button>
     <button class="btn ghost" id="restartBtn">Restart This Puzzle</button>
     <button class="btn ghost" id="newPuzzleBtn">New Puzzle</button>
@@ -548,9 +561,28 @@
 (function () {
   'use strict';
 
-  var SIZE = 4;
-  var CELLS = SIZE * SIZE;
-  var CLUES = { easy: 8, normal: 6, hard: 5 };
+  /* Two board sizes. 6x6 boxes are 3 wide by 2 tall, so box maths has to
+     use separate width and height rather than assuming a square box. */
+  var GRIDS = {
+    4: { size: 4, boxW: 2, boxH: 2, clues: { easy: 8, normal: 6, hard: 5 } },
+    6: { size: 6, boxW: 3, boxH: 2, clues: { easy: 18, normal: 14, hard: 11 } }
+  };
+  var SWITCH_LEVEL = 100;   // 4x4 through this level, 1-6 sudoku after it
+
+  // Set by applyGrid(); every size-dependent function reads these.
+  var SIZE, CELLS, BOX_W, BOX_H, CLUES, DIGITS;
+
+  function applyGrid(size) {
+    var g = GRIDS[size] || GRIDS[4];
+    SIZE = g.size;
+    CELLS = SIZE * SIZE;
+    BOX_W = g.boxW;
+    BOX_H = g.boxH;
+    CLUES = g.clues;
+    DIGITS = [];
+    for (var i = 1; i <= SIZE; i++) DIGITS.push(i);
+  }
+  applyGrid(4);
   var LABELS = { easy: 'Easy', normal: 'Medium', hard: 'Hard' };
   var STORE_KEY = 'sudoku4.save.v1';
   var LEVELS_PER_STAMP = 10;
@@ -694,6 +726,9 @@
     level: 1,
     difficulty: 'easy',    // the manual pick, used when autoDifficulty is off
     autoDifficulty: true,
+    gridSize: 4,           // the manual pick, used when autoGrid is off
+    autoGrid: true,
+    solvedBySize: { 4: 0, 6: 0 },
     puzzle: [],
     solution: [],
     grid: [],
@@ -732,9 +767,9 @@
       if (g[r * SIZE + i] === val) return false;
       if (g[i * SIZE + c] === val) return false;
     }
-    var br = r - r % 2, bc = c - c % 2;
-    for (var dr = 0; dr < 2; dr++) {
-      for (var dc = 0; dc < 2; dc++) {
+    var br = r - r % BOX_H, bc = c - c % BOX_W;
+    for (var dr = 0; dr < BOX_H; dr++) {
+      for (var dc = 0; dc < BOX_W; dc++) {
         if (g[(br + dr) * SIZE + bc + dc] === val) return false;
       }
     }
@@ -744,7 +779,7 @@
   function fill(g, pos) {
     if (pos === CELLS) return true;
     if (g[pos] !== 0) return fill(g, pos + 1);
-    var nums = shuffled([1, 2, 3, 4]);
+    var nums = shuffled(DIGITS);
     for (var i = 0; i < nums.length; i++) {
       if (isSafe(g, pos, nums[i])) {
         g[pos] = nums[i];
@@ -796,6 +831,10 @@
         level: state.level,
         difficulty: state.difficulty,
         autoDifficulty: state.autoDifficulty,
+        gridSize: state.gridSize,
+        autoGrid: state.autoGrid,
+        solvedBySize: state.solvedBySize,
+        size: SIZE,
         puzzle: state.puzzle,
         solution: state.solution,
         grid: state.grid,
@@ -807,9 +846,9 @@
     } catch (e) { /* private mode / storage full: just play without saving */ }
   }
 
-  function looksValid(s) {
-    return s && typeof s.level === 'number' && s.level >= 1 &&
-      Array.isArray(s.puzzle) && s.puzzle.length === CELLS &&
+  // Does the saved board match the grid we are about to play on?
+  function boardFits(s) {
+    return Array.isArray(s.puzzle) && s.puzzle.length === CELLS &&
       Array.isArray(s.solution) && s.solution.length === CELLS &&
       Array.isArray(s.grid) && s.grid.length === CELLS &&
       Array.isArray(s.notes) && s.notes.length === CELLS;
@@ -822,19 +861,40 @@
 
     var s;
     try { s = JSON.parse(raw); } catch (e) { return false; }
-    if (!looksValid(s)) return false;
+    if (!s || typeof s.level !== 'number' || s.level < 1) return false;
 
     state.level = s.level;
     state.difficulty = CLUES[s.difficulty] ? s.difficulty : 'easy';
     // Saves written before Auto existed had no way to express it, so they
     // opt in; only an explicit manual pick turns it off.
     state.autoDifficulty = s.autoDifficulty !== false;
+    state.autoGrid = s.autoGrid !== false;
+    state.gridSize = GRIDS[s.gridSize] ? Number(s.gridSize) : 4;
+    if (s.solvedBySize) {
+      state.solvedBySize = {
+        4: Math.max(0, s.solvedBySize[4] || 0),
+        6: Math.max(0, s.solvedBySize[6] || 0)
+      };
+    } else {
+      // Saves from before per-size counts existed: derive them from the
+      // level, so the difficulty ramp carries over instead of resetting.
+      var done = s.level - 1;
+      state.solvedBySize = {
+        4: Math.min(done, SWITCH_LEVEL),
+        6: Math.max(0, done - SWITCH_LEVEL)
+      };
+    }
     state.hints = s.hints || 0;
     // Clamp, so a hand-edited or stale save can't skip or replay awards.
     state.shownAwards = Math.max(0, Math.min(earnedAwards(), s.shownAwards || 0));
 
-    // Closed the app on the win screen: hand them the next level.
-    if (s.solved) {
+    // Settings decide the board size before the saved grid is measured.
+    applyGrid(effectiveSize());
+    buildBoard();
+
+    // Closed the app on the win screen, or the save is for a different
+    // board size: deal a fresh puzzle rather than restoring a mismatch.
+    if (s.solved || !boardFits(s)) {
       newPuzzle();
       return true;
     }
@@ -851,26 +911,62 @@
 
   /* ================= game flow ================= */
 
+  // Rebuilds the grid and the number pad for the current SIZE.
   function buildBoard() {
     boardEl.innerHTML = '';
     cellEls = [];
+    boardEl.style.gridTemplateColumns = 'repeat(' + SIZE + ', 1fr)';
+    boardEl.style.gridTemplateRows = 'repeat(' + SIZE + ', 1fr)';
+    boardEl.dataset.size = SIZE;
+
     for (var i = 0; i < CELLS; i++) {
+      var r = Math.floor(i / SIZE), c = i % SIZE;
       var d = document.createElement('div');
       d.className = 'cell';
+      // Thick rules on box edges, skipping the outer border. These live on
+      // data attributes because render() rewrites className every repaint.
+      if (c % BOX_W === BOX_W - 1 && c !== SIZE - 1) d.dataset.bxRight = '1';
+      if (r % BOX_H === BOX_H - 1 && r !== SIZE - 1) d.dataset.bxBottom = '1';
       d.dataset.i = i;
-      d.dataset.r = Math.floor(i / SIZE);
-      d.dataset.c = i % SIZE;
       boardEl.appendChild(d);
       cellEls.push(d);
     }
+
+    padEl.innerHTML = '';
+    padEl.style.gridTemplateColumns = 'repeat(' + SIZE + ', 1fr)';
+    padEl.dataset.size = SIZE;
+    DIGITS.forEach(function (n) {
+      var btn = document.createElement('button');
+      btn.dataset.n = n;
+      btn.textContent = n;
+      padEl.appendChild(btn);
+    });
   }
 
+  // 1-6 sudoku unlocks after SWITCH_LEVEL, or straight away from Settings.
+  function effectiveSize() {
+    return state.autoGrid ? (state.level > SWITCH_LEVEL ? 6 : 4) : state.gridSize;
+  }
+
+  // Auto difficulty ramps on levels cleared at the *current* board size, so
+  // moving up to 6x6 starts easy again instead of landing on Hard.
   function effectiveDifficulty() {
-    return state.autoDifficulty ? tierFor(state.level) : state.difficulty;
+    if (!state.autoDifficulty) return state.difficulty;
+    return tierFor((state.solvedBySize[effectiveSize()] || 0) + 1);
+  }
+
+  // Switches board size if needed; returns true when the grid was rebuilt.
+  function syncGridSize() {
+    var want = effectiveSize();
+    if (want === SIZE) return false;
+    applyGrid(want);
+    buildBoard();
+    return true;
   }
 
   // New puzzle at the current level, keeping progress.
   function newPuzzle() {
+    syncGridSize();
     var made = generate(effectiveDifficulty());
     state.puzzle = made.puzzle;
     state.solution = made.solution;
@@ -888,14 +984,14 @@
 
   function peersOf(i) {
     var r = Math.floor(i / SIZE), c = i % SIZE;
-    var br = r - r % 2, bc = c - c % 2;
+    var br = r - r % BOX_H, bc = c - c % BOX_W;
     var set = {};
     for (var k = 0; k < SIZE; k++) {
       set[r * SIZE + k] = true;
       set[k * SIZE + c] = true;
     }
-    for (var dr = 0; dr < 2; dr++) {
-      for (var dc = 0; dc < 2; dc++) set[(br + dr) * SIZE + bc + dc] = true;
+    for (var dr = 0; dr < BOX_H; dr++) {
+      for (var dc = 0; dc < BOX_W; dc++) set[(br + dr) * SIZE + bc + dc] = true;
     }
     return set;
   }
@@ -939,7 +1035,7 @@
       }
     }
 
-    var counts = [0, 0, 0, 0, 0];
+    var counts = new Array(SIZE + 1).fill(0);
     for (var j = 0; j < CELLS; j++) {
       if (state.grid[j] && state.grid[j] === state.solution[j]) counts[state.grid[j]]++;
     }
@@ -1065,11 +1161,17 @@
         (state.hints === 1 ? ' hint' : ' hints') + ' used)');
 
     // Bank the level now, so closing the app here still counts as a win.
+    var beforeSize = effectiveSize();
+    var beforeTier = effectiveDifficulty();
+    state.solvedBySize[beforeSize] = (state.solvedBySize[beforeSize] || 0) + 1;
     state.level++;
 
-    // Call out the step up so the jump in difficulty isn't a nasty surprise.
-    if (state.autoDifficulty && tierFor(state.level) !== tierFor(state.level - 1)) {
-      msg += ' Puzzles now step up to ' + LABELS[tierFor(state.level)] + '!';
+    // Call out a step up so the jump isn't a nasty surprise. Unlocking the
+    // bigger board is the bigger news, so it wins if both happen at once.
+    if (effectiveSize() !== beforeSize) {
+      msg += ' You unlocked 1-6 sudoku!';
+    } else if (state.autoDifficulty && effectiveDifficulty() !== beforeTier) {
+      msg += ' Puzzles now step up to ' + LABELS[effectiveDifficulty()] + '!';
     }
     document.getElementById('winText').textContent = msg;
 
@@ -1200,12 +1302,31 @@
 
     var note = document.getElementById('diffNote');
     if (state.autoDifficulty) {
-      var next = TIERS.filter(function (t) { return t.upTo !== Infinity && state.level <= t.upTo; })[0];
-      note.textContent = 'Gets harder as the levels go up. Right now: ' +
-        LABELS[effectiveDifficulty()] +
-        (next ? ' (until level ' + next.upTo + ').' : '.');
+      var done = state.solvedBySize[effectiveSize()] || 0;
+      var next = TIERS.filter(function (t) { return t.upTo !== Infinity && done < t.upTo; })[0];
+      note.textContent = 'Gets harder the more you solve. Right now: ' + LABELS[effectiveDifficulty()] +
+        (next ? ' (' + (next.upTo - done) + ' more on this board to reach ' +
+          LABELS[tierFor(next.upTo + 1)] + ').' : '.');
     } else {
       note.textContent = 'Changing this starts a fresh puzzle.';
+    }
+  }
+
+  function syncGridButtons() {
+    var group = document.getElementById('gridSize');
+    var current = state.autoGrid ? 'auto' : String(state.gridSize);
+    Array.prototype.forEach.call(group.children, function (b) {
+      b.setAttribute('aria-pressed', b.dataset.size === current ? 'true' : 'false');
+    });
+
+    var note = document.getElementById('gridNote');
+    if (!state.autoGrid) {
+      note.textContent = 'Playing ' + effectiveSize() + '×' + effectiveSize() + '. Changing this starts a fresh puzzle.';
+    } else if (state.level > SWITCH_LEVEL) {
+      note.textContent = '1-6 sudoku, unlocked at level ' + SWITCH_LEVEL + '.';
+    } else {
+      note.textContent = 'Numbers 1-4 now. 1-6 sudoku unlocks at level ' +
+        SWITCH_LEVEL + ' (' + (SWITCH_LEVEL - state.level + 1) + ' to go), or pick 6×6 to start it now.';
     }
   }
 
@@ -1262,8 +1383,29 @@
     disarmReset();
   }
 
+  document.getElementById('gridSize').addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    var pick = btn.dataset.size;
+    if (pick === (state.autoGrid ? 'auto' : String(state.gridSize))) return;
+
+    var was = effectiveSize();
+    if (pick === 'auto') {
+      state.autoGrid = true;
+    } else {
+      state.autoGrid = false;
+      state.gridSize = Number(pick);
+    }
+    syncGridButtons();
+    syncDifficultyButtons();
+    if (effectiveSize() !== was) newPuzzle();
+    save();
+    render();
+  });
+
   document.getElementById('settingsBtn').addEventListener('click', function () {
     syncDifficultyButtons();
+    syncGridButtons();
     disarmReset();
     settingsOverlay.classList.add('show');
   });
@@ -1331,6 +1473,7 @@
     disarmReset();
     state.level = 1;
     state.shownAwards = 0;   // stamps are earned from the level count, so they clear too
+    state.solvedBySize = { 4: 0, 6: 0 };
     settingsOverlay.classList.remove('show');
     newPuzzle();
     render();
@@ -1343,7 +1486,7 @@
       document.getElementById('stampOverlay').classList.remove('show');
       return;
     }
-    if (e.key >= '1' && e.key <= '4') { place(+e.key); return; }
+    if (e.key >= '1' && e.key <= String(SIZE)) { place(+e.key); return; }
     if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { erase(); return; }
     var arrows = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
     if (arrows[e.key]) {
